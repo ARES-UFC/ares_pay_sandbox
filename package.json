@@ -1,0 +1,30 @@
+{
+  "name": "ares_pay_sandbox",
+  "version": "1.0.0",
+  "description": "Integração de pagamentos em sandbox do Stripe com tokenização, verificação de assinatura de webhook e idempotência",
+  "main": "src/server.ts",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "tsx src/server.ts",
+    "dev": "tsx watch src/server.ts",
+    "test": "tsx --test tests/webhook.test.ts",
+    "simulate:webhook": "tsx simulator/send-test-webhook.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "better-sqlite3": "^13.0.3",
+    "dotenv": "^17.4.2",
+    "express": "^4.22.2",
+    "stripe": "^22.5.0",
+    "tsx": "^4.23.12"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^9.6.0",
+    "@types/express": "^5.0.6",
+    "@types/node": "^26.2.0",
+    "typescript": "5.9"
+  }
+}
