@@ -4,6 +4,7 @@ node_modules/
 *.sqlite
 data/
 dist/
-docs/
+docs/*
+!docs/transferir-para-organizacao.md
 npm-debug.log*
 .DS_Store
