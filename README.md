@@ -169,10 +169,6 @@ Dificuldades encontradas durante a implementação:
 
 O relato completo está na descrição do Pull Request.
 
-## Transferindo o repositório para uma organização do GitHub
-
-O passo a passo para mover este repositório para uma organização (via interface ou `gh` CLI) está documentado em [`docs/transferir-para-organizacao.md`](docs/transferir-para-organizacao.md).
-
 ## Licença
 
 MIT
