@@ -13,6 +13,26 @@ Integração de pagamento em ambiente de testes (**sandbox do Stripe**), focada 
 > [documentação oficial do Stripe](https://docs.stripe.com/testing). Cartões reais são
 > rejeitados automaticamente pelo gateway de testes.
 
+## Comparativo: os 3 controles por gateway
+
+Como os mesmos três controles são resolvidos pelos três gateways sugeridos no enunciado:
+
+| Controle | Stripe *(implementado neste repo)* | Mercado Pago | Pagar.me (Stone) |
+|----------|-----------------------------------|--------------|------------------|
+| **Tokenização** | Payment Element/Stripe.js renderizado em iframe no navegador; o número do cartão vai direto para a API do Stripe e o backend recebe apenas o `client_secret`/`payment_intent` | Card token de **uso único e curta duração** gerado no frontend via MercadoPago.js; o backend recebe somente o token e o usa na criação do pagamento | `card_token` gerado no frontend pelo checkout transparente/Tokenização JS; o pedido usa `card_token` ou `card_id` de um cartão salvo, e o PAN nunca passa pelo servidor do lojista |
+| **Webhook assinado** | Header `Stripe-Signature` (`t=...,v1=...`): HMAC-SHA256 do **corpo bruto** com o `whsec_...`; conferência com tolerância temporal (~5 min) contra replay, feita por `constructEvent` | Header `x-signature` com **timestamp + HMAC** enviados junto da notificação; a validação usa o *secret signature* configurado no painel (o SDK oficial faz a conferência HMAC) | Webhooks v5 são assinados, mas a documentação pública não detalha o formato do header; na v3 os postbacks usavam HMAC do corpo com a encryption key. Como camada extra, recomenda-se reconsultar o recurso (`order_id`/`charge_id`) na API antes de alterar o banco |
+| **Idempotência** | Header `Idempotency-Key` nas requisições POST (ex.: criação de PaymentIntent) | Header `Idempotency-Key`, **obrigatório** em requisições de pagamento desde 2023 | Header `Idempotency-Key` nas requisições de criação (pedidos/cobranças), gerada pelo próprio integrador |
+
+Em todos os três o padrão é o mesmo: dados sensíveis tokenizados no navegador, notificações assinadas por HMAC com um secret conhecido só pelas duas pontas e uma chave de idempotência gerada pelo integrador nas chamadas mutantes. A diferença fica no formato do header de assinatura e no rigor com que cada gateway exige a chave de idempotência.
+
+> ℹ️ Apenas a coluna **Stripe** está implementada neste repositório. As colunas de Mercado Pago e Pagar.me são um levantamento a partir da documentação oficial de cada gateway, citada abaixo.
+
+Fontes oficiais:
+
+* Stripe: [Payment Element](https://docs.stripe.com/payments/payment-element) · [Verificação de webhooks](https://docs.stripe.com/webhooks#verify-manually) · [Requisições idempotentes](https://docs.stripe.com/api/idempotent_requests)
+* Mercado Pago: [Geração de card token](https://www.mercadopago.com.br/developers/pt/docs/subscriptions/additional-content/cardtoken) · [Webhooks e validação de assinatura](https://www.mercadopago.com.br/developers/pt/docs/your-integrations/notifications/webhooks) · [Chave de idempotência obrigatória](https://www.mercadopago.com.br/developers/pt/news/2023/01/04/Idempotency-key-usage-will-be-mandatory)
+* Pagar.me (Stone): [Webhooks](https://docs.pagar.me/docs/webhooks) · [Cartão de crédito e tokenização](https://docs.pagar.me/reference/cart%C3%A3o-de-cr%C3%A9dito-1) · [Idempotência](https://conteudo.stone.com.br/idempotencia/)
+
 ---
 
 ## Como executar o projeto
@@ -130,6 +150,28 @@ simulator/             Script para envio local de webhooks assinados
 tests/                 Testes automatizados com node:test
 tsconfig.json          Configuração do compilador TypeScript
 ```
+
+## Uso de IA e dificuldades
+
+O uso de IA neste projeto ficou restrito a três frentes:
+
+1. **Escrita de documentação**: redação e revisão deste README e da descrição do Pull Request.
+2. **Comentários no código**: auxílio na redação dos comentários que explicam os controles no código (por exemplo, o comentário em `src/routes/checkout.ts` sobre o motivo de o endpoint nunca receber dados de cartão).
+3. **Programação assistida**: autocomplete e geração de trechos de código sob minha direção e revisão, dentro da arquitetura que eu havia definido.
+
+As decisões de arquitetura e de segurança (escolha do gateway, os três controles, o modelo de dados e o desenho do fluxo de webhook) foram minhas; a IA não foi usada para tomá-las.
+
+Dificuldades encontradas durante a implementação:
+
+* **Corpo bruto antes do parser de JSON.** A verificação da assinatura do webhook depende do body *exatamente* como o Stripe o enviou. Montar o `express.json()` antes da rota de webhook corrompe o corpo (re-serialização) e quebra a validação de forma silenciosa: o problema só aparece quando um webhook legítimo é rejeitado. A solução foi registrar `express.raw()` para `/webhooks` antes do parser global em `src/app.ts`.
+* **Compilação do `better-sqlite3` no Docker.** O pacote tem código nativo e a imagem final slim não possui as ferramentas de compilação. Exigiu um multi-stage build (`Dockerfile`) que compila na etapa de build e copia apenas os binários para `node:22-slim`.
+* **Idempotência em duas camadas.** Não bastava confiar só na `Idempotency-Key` do Stripe: reenvios do webhook chegam como novas requisições sem chave. Foi preciso proteger as duas pontas: chave de idempotência na criação do PaymentIntent e chave primária em `event_id` no SQLite para o webhook (`src/routes/webhook.ts`).
+
+O relato completo está na descrição do Pull Request.
+
+## Transferindo o repositório para uma organização do GitHub
+
+O passo a passo para mover este repositório para uma organização (via interface ou `gh` CLI) está documentado em [`docs/transferir-para-organizacao.md`](docs/transferir-para-organizacao.md).
 
 ## Licença
 
